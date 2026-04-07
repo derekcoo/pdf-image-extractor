@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import importlib
 import io
 import zipfile
 
 import fitz
+import pytest
 from fastapi.testclient import TestClient
 
-from pic_extractor.main import app
+import pic_extractor.main as main_module
 
 
 def test_index_page_renders_upload_form() -> None:
-    client = TestClient(app)
+    client = TestClient(main_module.app)
 
     response = client.get("/", headers={"accept-language": "zh-CN,zh;q=0.9,en;q=0.8"})
 
@@ -55,7 +57,7 @@ def test_index_page_renders_upload_form() -> None:
 
 
 def test_index_page_supports_english_via_lang_override() -> None:
-    client = TestClient(app)
+    client = TestClient(main_module.app)
 
     response = client.get("/?lang=en", headers={"accept-language": "zh-CN,zh;q=0.9"})
 
@@ -77,7 +79,7 @@ def test_index_page_supports_english_via_lang_override() -> None:
 
 
 def test_api_rejects_non_pdf_upload() -> None:
-    client = TestClient(app)
+    client = TestClient(main_module.app)
 
     response = client.post(
         "/api/extract-images",
@@ -93,7 +95,7 @@ def test_api_returns_zip_download_for_pdf_upload(red_png: bytes) -> None:
     page = document.new_page()
     page.insert_image(fitz.Rect(20, 20, 120, 120), stream=red_png)
 
-    client = TestClient(app)
+    client = TestClient(main_module.app)
     response = client.post(
         "/api/extract-images",
         files={"file": ("sample.pdf", document.tobytes(), "application/pdf")},
@@ -110,7 +112,7 @@ def test_api_supports_non_ascii_upload_filename(red_png: bytes) -> None:
     page = document.new_page()
     page.insert_image(fitz.Rect(20, 20, 120, 120), stream=red_png)
 
-    client = TestClient(app)
+    client = TestClient(main_module.app)
     response = client.post(
         "/api/extract-images",
         files={"file": ("中文文件.pdf", document.tobytes(), "application/pdf")},
@@ -120,3 +122,28 @@ def test_api_supports_non_ascii_upload_filename(red_png: bytes) -> None:
     content_disposition = response.headers["content-disposition"]
     assert 'filename="download-images.zip"' in content_disposition
     assert "filename*=utf-8''%E4%B8%AD%E6%96%87%E6%96%87%E4%BB%B6-images.zip" in content_disposition
+
+
+def test_healthz_reports_service_ready() -> None:
+    client = TestClient(main_module.app)
+
+    response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_index_page_uses_runtime_limits_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    with monkeypatch.context() as env:
+        env.setenv("PIC_EXTRACTOR_MAX_FILE_SIZE_MB", "12")
+        env.setenv("PIC_EXTRACTOR_MAX_PAGES", "34")
+        reloaded_module = importlib.reload(main_module)
+        client = TestClient(reloaded_module.app)
+
+        response = client.get("/", headers={"accept-language": "zh-CN,zh;q=0.9"})
+
+        assert response.status_code == 200
+        assert ">12 MB<" in response.text
+        assert ">34 页<" in response.text
+
+    importlib.reload(main_module)

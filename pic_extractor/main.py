@@ -7,7 +7,9 @@ from urllib.parse import quote, urlencode
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 
+from pic_extractor.config import load_runtime_config
 from pic_extractor.services.pdf_extractor import (
     FileTooLargeError,
     InvalidPDFError,
@@ -20,8 +22,12 @@ from pic_extractor.services.pdf_extractor import (
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+runtime_config = load_runtime_config()
 app = FastAPI(title="PDF Image Extractor")
-extractor = PDFImageExtractor()
+extractor = PDFImageExtractor(
+    max_file_size_bytes=runtime_config.max_file_size_bytes,
+    max_pages=runtime_config.max_pages,
+)
 
 SUPPORTED_LANGUAGES = ("zh", "en")
 
@@ -352,6 +358,11 @@ def build_language_link(request: Request, language: str) -> str:
     return f"{request.url.path}?{query_string}" if query_string else request.url.path
 
 
+@app.get("/healthz")
+async def healthz() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
     language = resolve_language(request)
@@ -367,8 +378,8 @@ async def index(request: Request) -> HTMLResponse:
                 "en": build_language_link(request, "en"),
             },
             "ui_text": translations["ui"],
-            "max_file_size_mb": extractor.max_file_size_bytes // (1024 * 1024),
-            "max_pages": extractor.max_pages,
+            "max_file_size_mb": runtime_config.max_file_size_mb,
+            "max_pages": runtime_config.max_pages,
         },
     )
 
@@ -377,7 +388,7 @@ async def index(request: Request) -> HTMLResponse:
 async def extract_images(file: UploadFile = File(...)) -> Response:
     pdf_bytes = await file.read()
     try:
-        archive_bytes = extractor.build_zip(pdf_bytes)
+        archive_bytes = await run_in_threadpool(extractor.build_zip, pdf_bytes)
     except InvalidPDFError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileTooLargeError as exc:

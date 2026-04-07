@@ -23,5 +23,14 @@ dev = [
   "pytest>=8.3.0,<9.0.0",
 ]
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["pic_extractor", "pic_extractor.*"]
+
+[tool.setuptools.package-data]
+pic_extractor = ["templates/*.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

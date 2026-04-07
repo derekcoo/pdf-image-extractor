@@ -78,6 +78,11 @@ PYTHONPATH=. uvicorn pic_extractor.main:app --reload
 - 返回网页工作台
 - 页面会注入当前最大文件大小和最大页数限制
 
+### `GET /healthz`
+
+- 返回服务健康状态
+- 用于宝塔反向代理后的人工探活或简单监控
+
 ### `POST /api/extract-images`
 
 - 表单字段：`file`
@@ -130,6 +135,76 @@ PYTHONPATH=. pytest -q
 source .venv/bin/activate
 PYTHONPATH=. uvicorn pic_extractor.main:app --reload
 ```
+
+## 宝塔部署
+
+推荐把这个工具部署到独立子域名，例如 `pdf.example.com`，再由宝塔站点的 `Nginx` 反向代理到同一台服务器上的 Python 服务端口。
+
+### 1. 在服务器上准备代码和虚拟环境
+
+```bash
+cd /www/wwwroot
+git clone <你的仓库地址> pic-extractor
+cd pic-extractor
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install .
+```
+
+如果你是直接上传源码到服务器，也可以在项目目录里执行同样的安装命令。
+
+### 2. 配置运行参数
+
+可通过环境变量调整当前站点的处理范围：
+
+- `PIC_EXTRACTOR_MAX_FILE_SIZE_MB`：单个 PDF 最大体积，默认 `50`
+- `PIC_EXTRACTOR_MAX_PAGES`：单个 PDF 最大页数，默认 `200`
+
+一个适合宝塔反代的启动示例：
+
+```bash
+cd /www/wwwroot/pic-extractor
+source .venv/bin/activate
+export PIC_EXTRACTOR_MAX_FILE_SIZE_MB=50
+export PIC_EXTRACTOR_MAX_PAGES=200
+uvicorn pic_extractor.main:app --host 127.0.0.1 --port 18081
+```
+
+建议让 Python 服务只监听 `127.0.0.1`，不要直接暴露公网端口。
+
+### 3. 在宝塔里配置站点和反向代理
+
+1. 新建一个独立站点，例如 `pdf.example.com`
+2. 申请并开启 HTTPS
+3. 在站点设置中启用反向代理，目标地址指向 `http://127.0.0.1:18081`
+4. 确保站点只把外部请求交给 `Nginx`，不要让 Uvicorn 直接对外监听
+
+### 4. 建议的 Nginx 限制
+
+这个工具会接收 PDF 上传，建议在宝塔站点的 Nginx 配置中补充以下限制：
+
+```nginx
+client_max_body_size 60m;
+proxy_connect_timeout 60s;
+proxy_send_timeout 300s;
+proxy_read_timeout 300s;
+send_timeout 300s;
+```
+
+其中：
+
+- `client_max_body_size` 应不小于应用允许的 PDF 体积
+- `proxy_read_timeout` 需要给复杂 PDF 的提取过程留出足够时间
+
+### 5. 部署后验证
+
+部署完成后可以先访问：
+
+- 首页：`https://pdf.example.com/`
+- 健康检查：`https://pdf.example.com/healthz`
+
+如果 `GET /healthz` 返回 `{"status":"ok"}`，说明应用已经正常启动并被反向代理接通。
 
 ## 当前实现说明
 
