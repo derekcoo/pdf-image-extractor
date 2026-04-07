@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pic-extractor"
+version = "0.1.0"
+description = "Web tool for extracting images from PDFs as PNG files."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0,<1.0.0",
+  "jinja2>=3.1.0,<4.0.0",
+  "pillow>=10.4.0,<12.0.0",
+  "pymupdf>=1.24.0,<2.0.0",
+  "python-multipart>=0.0.9,<1.0.0",
+  "uvicorn>=0.32.0,<1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28.0,<1.0.0",
+  "pytest>=8.3.0,<9.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
