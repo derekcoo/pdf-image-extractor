@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="{{ t.html_lang }}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PDF 图片提取工具</title>
+    <title>{{ t.page_title }}</title>
     <link
       rel="icon"
       type="image/svg+xml"
@@ -127,6 +127,35 @@
         color: var(--ink-faint);
         font-size: 0.94rem;
         text-align: right;
+      }
+
+      .masthead-side {
+        display: grid;
+        justify-items: end;
+        gap: 8px;
+      }
+
+      .lang-switcher {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(18, 20, 25, 0.08);
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--ink-faint);
+        font-size: 0.82rem;
+        letter-spacing: 0.04em;
+      }
+
+      .lang-switcher a {
+        color: inherit;
+        text-decoration: none;
+        font-weight: 700;
+      }
+
+      .lang-switcher a[data-active="true"] {
+        color: var(--ink);
       }
 
       .shell {
@@ -940,6 +969,10 @@
           align-items: flex-start;
         }
 
+        .masthead-side {
+          justify-items: start;
+        }
+
         .masthead-note {
           text-align: left;
         }
@@ -983,87 +1016,84 @@
         <div class="brand-lockup">
           <div class="brand-mark">PX</div>
           <div class="brand-copy">
-            <strong>Pic Extractor</strong>
-            <span>Editorial document utility</span>
+            <strong>{{ t.brand_name }}</strong>
+            <span>{{ t.brand_subtitle }}</span>
           </div>
         </div>
-        <div class="masthead-note">为文档整理、内容归档与版面审校准备的图片提取工作台。</div>
+        <div class="masthead-side">
+          <nav class="lang-switcher" aria-label="{{ t.language_switch_aria }}">
+            <a href="{{ language_links.zh }}" data-active="{{ 'true' if lang == 'zh' else 'false' }}">{{ t.language_names.zh }}</a>
+            <span>/</span>
+            <a href="{{ language_links.en }}" data-active="{{ 'true' if lang == 'en' else 'false' }}">{{ t.language_names.en }}</a>
+          </nav>
+          <div class="masthead-note">{{ t.masthead_note }}</div>
+        </div>
       </header>
 
       <main class="shell">
         <section class="editorial-pane">
-          <div class="eyebrow">PDF 图片提取</div>
+          <div class="eyebrow">{{ t.editorial.eyebrow }}</div>
           <div>
-            <h1>把 PDF 里的图片，拆回它们该有的样子。</h1>
-            <p class="lede">
-              一个为文档工作流设计的单页工具。上传 PDF 后，系统会优先提取内嵌原图，必要时再按页面区域补齐裁切结果，
-              让每一张图片都能独立归档、复核与再利用。
-            </p>
+            <h1>{{ t.editorial.hero_title }}</h1>
+            <p class="lede">{{ t.editorial.lede }}</p>
           </div>
 
           <div class="edition-row">
-            <div class="edition-chip"><strong>Edition</strong> Single-file workflow</div>
-            <div class="edition-chip"><strong>Output</strong> PNG + ZIP packaging</div>
-            <div class="edition-chip"><strong>Method</strong> Embedded first, page fallback</div>
+            {% for chip in t.editorial.edition_chips %}
+            <div class="edition-chip"><strong>{{ chip.label }}</strong> {{ chip.value }}</div>
+            {% endfor %}
           </div>
 
           <div class="note-grid">
+            {% for note in t.editorial.notes %}
             <article class="note-card">
-              <strong>可靠提取</strong>
-              <p>优先走 PDF 内嵌图片对象，避免无谓失真；遇到特殊页面时，再用页面区域裁切补足结果。</p>
+              <strong>{{ note.title }}</strong>
+              <p>{{ note.body }}</p>
             </article>
-            <article class="note-card">
-              <strong>适合审校</strong>
-              <p>每张图片都会单独编号输出，方便你比对页码、素材顺序与版面构成，不需要手工截图。</p>
-            </article>
+            {% endfor %}
           </div>
 
-          <section class="process-strip" aria-label="处理流程说明">
-            <h2>工作方式</h2>
+          <section class="process-strip" aria-label="{{ t.editorial.process.aria_label }}">
+            <h2>{{ t.editorial.process.title }}</h2>
             <ol class="process-list">
+              {% for step in t.editorial.process.steps %}
               <li>
-                <span class="process-index">01</span>
-                <span>上传一个未加密 PDF，系统先检查文件体积与页数是否在当前处理范围内。</span>
+                <span class="process-index">{{ "%02d" | format(loop.index) }}</span>
+                <span>{{ step }}</span>
               </li>
-              <li>
-                <span class="process-index">02</span>
-                <span>优先提取内嵌图片，再对页面中的图片块做补充裁切，统一输出为 PNG。</span>
-              </li>
-              <li>
-                <span class="process-index">03</span>
-                <span>提取结果自动打包为 ZIP 下载，并以通知弹窗确认本次导出情况。</span>
-              </li>
+              {% endfor %}
             </ol>
           </section>
         </section>
 
         <section class="workbench">
           <div class="workbench-head">
-            <div class="eyebrow">Workbench</div>
-            <h2>上传工作区</h2>
-            <p>拖入一个 PDF，或点击选择。页面会持续显示上传与处理进度，完成后自动开始下载。</p>
+            <div class="eyebrow">{{ t.workbench.eyebrow }}</div>
+            <h2>{{ t.workbench.title }}</h2>
+            <p>{{ t.workbench.intro }}</p>
           </div>
 
           <form id="extract-form">
             <label id="dropzone" class="dropzone" data-drag-active="false">
               <div class="dropzone-copy">
-                <span class="dropzone-title">拖入 PDF 到这里</span>
-                <p class="dropzone-hint">也可以点击选择。仅支持单个未加密 PDF，上传后会自动提取并打包下载。</p>
+                <span class="dropzone-title">{{ t.workbench.dropzone_title }}</span>
+                <p class="dropzone-hint">{{ t.workbench.dropzone_hint }}</p>
               </div>
               <div class="dropzone-foot">
-                <span class="dropzone-badge">单个 PDF</span>
-                <span class="dropzone-badge">PNG / ZIP</span>
+                {% for badge in t.workbench.badges %}
+                <span class="dropzone-badge">{{ badge }}</span>
+                {% endfor %}
               </div>
               <input id="file-input" name="file" type="file" accept="application/pdf,.pdf" required />
             </label>
 
             <div id="workflow-panel" class="workflow-panel">
               <div class="workflow-block">
-                <div class="workflow-block-title">当前任务</div>
+                <div class="workflow-block-title">{{ t.workbench.current_file_title }}</div>
                 <div id="selected-file" class="selected-file" data-visible="false" aria-live="polite">
                   <div>
-                    <strong id="selected-file-name">尚未选择 PDF</strong>
-                    <span id="selected-file-meta">选择一个 PDF 后，这里会显示文件信息。</span>
+                    <strong id="selected-file-name">{{ t.workbench.empty_file_title }}</strong>
+                    <span id="selected-file-meta">{{ t.workbench.empty_file_meta }}</span>
                   </div>
                 </div>
               </div>
@@ -1071,10 +1101,10 @@
               <div class="workflow-divider" aria-hidden="true"></div>
 
               <div class="workflow-block">
-                <div class="workflow-block-title">状态进度</div>
+                <div class="workflow-block-title">{{ t.workbench.progress_title }}</div>
                 <div id="progress-panel" class="progress-panel" data-visible="false">
                   <div class="progress-meta">
-                    <span id="progress-stage">等待上传</span>
+                    <span id="progress-stage">{{ t.workbench.progress_wait }}</span>
                     <span id="progress-percent">0%</span>
                   </div>
                   <div
@@ -1084,7 +1114,7 @@
                     aria-valuemin="0"
                     aria-valuemax="100"
                     aria-valuenow="0"
-                    aria-label="上传进度"
+                    aria-label="{{ t.workbench.progress_title }}"
                   >
                     <div id="upload-progress-bar" class="progress-bar"></div>
                   </div>
@@ -1093,9 +1123,9 @@
                 <div id="processing-card" class="processing-card" data-visible="false" aria-live="polite">
                   <div class="processing-orbit" aria-hidden="true"></div>
                   <div>
-                    <strong id="processing-card-title">图片提取中</strong>
-                    <p id="processing-card-body">上传完成后会继续自动提取图片，并整理成 ZIP 供下载。</p>
-                    <div class="processing-note" id="processing-card-note">复杂 PDF 可能需要多一点时间，请保持当前页面打开。</div>
+                    <strong id="processing-card-title">{{ t.workbench.processing_title }}</strong>
+                    <p id="processing-card-body">{{ t.workbench.processing_body }}</p>
+                    <div class="processing-note" id="processing-card-note">{{ t.workbench.processing_note }}</div>
                   </div>
                 </div>
               </div>
@@ -1103,22 +1133,22 @@
 
             <div class="meta">
               <div class="meta-card">
-                <strong>最大文件大小</strong>
+                <strong>{{ t.workbench.meta_file_size }}</strong>
                 <span>{{ max_file_size_mb }} MB</span>
               </div>
               <div class="meta-card">
-                <strong>最大页数</strong>
-                <span>{{ max_pages }} 页</span>
+                <strong>{{ t.workbench.meta_pages }}</strong>
+                <span>{{ max_pages }} {{ t.workbench.meta_pages_unit }}</span>
               </div>
             </div>
 
             <div id="error-card" class="error-card" data-visible="false" aria-live="assertive">
-              <strong id="error-card-title">暂时无法处理这个文件</strong>
-              <p id="error-card-body">请检查文件是否为标准 PDF，然后重新上传。</p>
-              <div id="error-card-hint" class="error-card-hint">如果问题持续出现，可以尝试换一个 PDF 样本验证。</div>
+              <strong id="error-card-title">{{ t.workbench.error_title }}</strong>
+              <p id="error-card-body">{{ t.workbench.error_body }}</p>
+              <div id="error-card-hint" class="error-card-hint">{{ t.workbench.error_hint }}</div>
             </div>
 
-            <button id="submit-button" type="submit">开始提取</button>
+            <button id="submit-button" type="submit">{{ t.workbench.submit }}</button>
             <div id="status" aria-live="polite"></div>
           </form>
         </section>
@@ -1135,40 +1165,41 @@
         aria-describedby="result-modal-body"
       >
         <div class="result-modal-topline">
-          <div class="result-modal-kicker">Extraction complete</div>
-          <div class="result-modal-meta">Editorial output notice</div>
+          <div class="result-modal-kicker">{{ t.result_modal.kicker }}</div>
+          <div class="result-modal-meta">{{ t.result_modal.meta }}</div>
         </div>
         <div class="result-modal-hero">
           <div class="result-seal" aria-hidden="true">
             <div class="result-seal-mark">OK</div>
           </div>
           <div class="result-modal-head">
-            <strong id="result-modal-title" class="result-modal-title">提取结果通知</strong>
-            <p id="result-modal-body">ZIP 已生成并开始下载，下面是本次提取结果。</p>
+            <strong id="result-modal-title" class="result-modal-title">{{ t.result_modal.title }}</strong>
+            <p id="result-modal-body">{{ t.result_modal.body }}</p>
           </div>
         </div>
         <div class="result-summary">
           <div class="result-pill">
-            <span class="result-pill-label">状态</span>
-            <span id="result-modal-status" class="result-pill-value">提取完成</span>
+            <span class="result-pill-label">{{ t.result_modal.status_label }}</span>
+            <span id="result-modal-status" class="result-pill-value">{{ t.result_modal.status_value }}</span>
           </div>
           <div class="result-pill">
-            <span class="result-pill-label">导出张数</span>
-            <span id="result-modal-image-count" class="result-pill-value">0 张</span>
+            <span class="result-pill-label">{{ t.result_modal.image_count_label }}</span>
+            <span id="result-modal-image-count" class="result-pill-value">0 {{ t.result_modal.image_count_unit }}</span>
           </div>
           <div class="result-pill">
-            <span class="result-pill-label">ZIP 文件名</span>
+            <span class="result-pill-label">{{ t.result_modal.zip_name_label }}</span>
             <span id="result-modal-zip-name" class="result-pill-value">extracted-images.zip</span>
           </div>
         </div>
-        <div id="result-modal-note" class="result-card-note">点击确认后，页面会自动刷新，方便开始下一次提取。</div>
+        <div id="result-modal-note" class="result-card-note">{{ t.result_modal.note }}</div>
         <div class="result-modal-actions">
-          <button id="result-modal-confirm" type="button">确认并刷新</button>
+          <button id="result-modal-confirm" type="button">{{ t.result_modal.confirm }}</button>
         </div>
       </div>
     </div>
 
     <script>
+      const uiText = {{ ui_text|tojson }};
       const form = document.getElementById("extract-form");
       const dropzone = document.getElementById("dropzone");
       const fileInput = document.getElementById("file-input");
@@ -1227,8 +1258,8 @@
         progressPanel.dataset.visible = "true";
         progressPanel.dataset.mode = "processing";
         progressTrack.setAttribute("aria-valuenow", "100");
-        progressPercent.textContent = "处理中";
-        progressStage.textContent = "服务器处理中";
+        progressPercent.textContent = uiText.stages.processing_percent;
+        progressStage.textContent = uiText.stages.server_processing;
         progressBar.style.width = "38%";
         processingCard.dataset.visible = "true";
         processingCardTitle.textContent = title;
@@ -1267,12 +1298,12 @@
       function showResultModal(zipName, imageCount) {
         resultModalBackdrop.dataset.visible = "true";
         resultModalBackdrop.dataset.state = "open";
-        resultModalTitle.textContent = "提取结果通知";
-        resultModalBody.textContent = "ZIP 已生成并开始下载，下面是本次提取结果。";
-        resultModalStatus.textContent = "提取完成";
-        resultModalImageCount.textContent = `${imageCount} 张`;
+        resultModalTitle.textContent = uiText.result.title;
+        resultModalBody.textContent = uiText.result.body;
+        resultModalStatus.textContent = uiText.result.status;
+        resultModalImageCount.textContent = `${imageCount} {{ t.result_modal.image_count_unit }}`;
         resultModalZipName.textContent = zipName;
-        resultModalNote.textContent = "点击确认后，页面会自动刷新，方便开始下一次提取。";
+        resultModalNote.textContent = uiText.result.note;
         resultModalConfirm.focus();
       }
 
@@ -1299,40 +1330,35 @@
       }
 
       function mapErrorDetail(statusCode, detail) {
+        const knownDetails = {
+          "Uploaded file is not a valid PDF.": uiText.errors.invalid_pdf,
+          "Password-protected PDFs are not supported.": uiText.errors.password_protected,
+          "Uploaded PDF exceeds the maximum allowed file size.": uiText.errors.file_too_large,
+          "Uploaded PDF exceeds the maximum allowed page count.": uiText.errors.page_limit,
+          "No extractable images were found in the PDF.": uiText.errors.no_images,
+          "Unexpected extraction failure.": uiText.errors.unexpected,
+        };
+        if (detail && knownDetails[detail]) {
+          return knownDetails[detail];
+        }
         if (statusCode === 400) {
-          return {
-            title: "文件格式有误",
-            body: detail || "当前上传内容不是可处理的 PDF 文件。",
-            hint: "请确认文件扩展名和实际内容一致，并重新上传标准 PDF。",
-          };
+          return uiText.errors.invalid_pdf;
         }
         if (statusCode === 413) {
-          return {
-            title: "文件超出当前处理范围",
-            body: detail || "文件大小或页数超过了当前服务限制。",
-            hint: "可以先压缩 PDF，或拆分为更小的文件后再试。",
-          };
+          return uiText.errors.file_too_large;
         }
         if (statusCode === 422) {
-          return {
-            title: "没有检测到可提取图片",
-            body: detail || "这个 PDF 里可能只有文字或矢量内容。",
-            hint: "你可以换一个含有位图图片的 PDF 样本再验证。",
-          };
+          return uiText.errors.no_images;
         }
-        return {
-          title: "提取失败",
-          body: detail || "服务端在提取图片时遇到了异常。",
-          hint: "请稍后重试；如果持续失败，建议先用更小的 PDF 进行排查。",
-        };
+        return uiText.errors.unexpected;
       }
 
       function syncSelectedFile() {
         const file = fileInput.files[0];
         if (!file) {
           selectedFile.dataset.visible = "false";
-          selectedFileName.textContent = "尚未选择 PDF";
-          selectedFileMeta.textContent = "选择一个 PDF 后，这里会显示文件信息。";
+          selectedFileName.textContent = "{{ t.workbench.empty_file_title }}";
+          selectedFileMeta.textContent = "{{ t.workbench.empty_file_meta }}";
           return;
         }
         selectedFile.dataset.visible = "true";
@@ -1377,7 +1403,7 @@
         fileInput.files = files;
         syncSelectedFile();
         hideResultModal();
-        setStatus("文件已就绪，可以开始提取。", "");
+        setStatus(uiText.status_messages.file_ready, "");
       });
 
       resultModalConfirm.addEventListener("click", () => {
@@ -1400,8 +1426,8 @@
         event.preventDefault();
         const file = fileInput.files[0];
         if (!file) {
-          showErrorCard("还没有选择文件", "请先选择或拖入一个 PDF 文件。", "选择完成后，再点击“开始提取”。");
-          setStatus("请先选择一个 PDF 文件。", "error");
+          showErrorCard(uiText.errors.missing_file.title, uiText.errors.missing_file.body, uiText.errors.missing_file.hint);
+          setStatus(uiText.status_messages.select_pdf, "error");
           return;
         }
 
@@ -1409,8 +1435,8 @@
         hideErrorCard();
         hideProcessingState();
         hideResultModal();
-        setProgress(0, "准备上传");
-        setStatus("正在上传文件，请稍候...", "");
+        setProgress(0, uiText.stages.prepare_upload);
+        setStatus(uiText.status_messages.uploading, "");
 
         const formData = new FormData();
         formData.append("file", file);
@@ -1421,11 +1447,11 @@
 
         request.upload.onprogress = (progressEvent) => {
           if (!progressEvent.lengthComputable) {
-            setProgress(15, "正在上传");
+            setProgress(15, uiText.stages.uploading);
             return;
           }
           const percent = (progressEvent.loaded / progressEvent.total) * 100;
-          setProgress(percent, "正在上传");
+          setProgress(percent, uiText.stages.uploading);
         };
 
         request.onload = async () => {
@@ -1435,11 +1461,11 @@
               const payload = parseErrorPayload(message);
               const mapped = mapErrorDetail(request.status, payload.detail);
               showErrorCard(mapped.title, mapped.body, mapped.hint);
-              throw new Error(payload.detail || mapped.body || "提取失败。");
+              throw new Error(mapped.body || uiText.status_messages.failed);
             }
 
             hideProcessingState();
-            setProgress(100, "准备下载");
+            setProgress(100, uiText.stages.prepare_download);
             const blob = request.response;
             let imageCount = 0;
             try {
@@ -1462,9 +1488,9 @@
             anchor.remove();
             window.URL.revokeObjectURL(url);
             showResultModal(filename, imageCount);
-            setStatus("提取完成，ZIP 已开始下载。", "success");
+            setStatus(uiText.status_messages.completed, "success");
           } catch (error) {
-            setStatus(error.message || "提取失败，请稍后重试。", "error");
+            setStatus(error.message || uiText.status_messages.failed, "error");
             hideProcessingState();
             hideResultModal();
             progressPanel.dataset.visible = "false";
@@ -1474,12 +1500,8 @@
         };
 
         request.onerror = () => {
-          showErrorCard(
-            "网络连接异常",
-            "文件上传过程中网络连接中断，当前请求没有成功发送到服务器。",
-            "请检查网络后重新上传，或刷新页面再试一次。"
-          );
-          setStatus("网络异常，上传失败，请稍后重试。", "error");
+          showErrorCard(uiText.errors.network.title, uiText.errors.network.body, uiText.errors.network.hint);
+          setStatus(uiText.status_messages.network_failed, "error");
           hideProcessingState();
           hideResultModal();
           progressPanel.dataset.visible = "false";
@@ -1487,17 +1509,17 @@
         };
 
         request.onloadstart = () => {
-          setProgress(0, "正在上传");
+          setProgress(0, uiText.stages.uploading);
         };
 
         request.onreadystatechange = () => {
           if (request.readyState === XMLHttpRequest.HEADERS_RECEIVED || request.readyState === XMLHttpRequest.LOADING) {
             setProcessingState(
-              "图片提取中",
-              "上传完成后会继续自动提取图片，并整理成 ZIP 供下载。",
-              "复杂 PDF 可能需要多一点时间，请保持当前页面打开。"
+              "{{ t.workbench.processing_title }}",
+              "{{ t.workbench.processing_body }}",
+              "{{ t.workbench.processing_note }}"
             );
-            setStatus("文件已上传完成，正在提取图片...", "");
+            setStatus(uiText.status_messages.uploaded_processing, "");
           }
         };
 
