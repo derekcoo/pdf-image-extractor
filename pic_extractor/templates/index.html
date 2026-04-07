@@ -411,25 +411,42 @@
       }
 
       input[type="file"] {
-        width: 100%;
-        color: var(--ink-soft);
-        font-size: 0.96rem;
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
       }
 
-      input[type="file"]::file-selector-button {
-        margin-right: 14px;
-        border: 0;
+      .file-picker {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        width: fit-content;
+        min-height: 44px;
+        color: var(--ink-soft);
+      }
+
+      .file-picker-button {
+        min-height: 44px;
+        padding: 10px 14px;
         border-radius: 999px;
         background: var(--ink);
         color: #f8f8f6;
-        padding: 10px 14px;
+        font-size: 0.94rem;
         font-weight: 700;
-        cursor: pointer;
-        transition: opacity 180ms ease;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
       }
 
-      input[type="file"]::file-selector-button:hover {
-        opacity: 0.9;
+      .file-picker-name {
+        color: var(--ink-faint);
+        font-size: 0.95rem;
       }
 
       .workflow-panel {
@@ -1084,6 +1101,10 @@
                 <span class="dropzone-badge">{{ badge }}</span>
                 {% endfor %}
               </div>
+              <div class="file-picker" aria-hidden="true">
+                <span class="file-picker-button">{{ t.workbench.file_picker_button }}</span>
+                <span id="file-picker-name" class="file-picker-name">{{ t.workbench.file_picker_empty }}</span>
+              </div>
               <input id="file-input" name="file" type="file" accept="application/pdf,.pdf" required />
             </label>
 
@@ -1203,6 +1224,7 @@
       const form = document.getElementById("extract-form");
       const dropzone = document.getElementById("dropzone");
       const fileInput = document.getElementById("file-input");
+      const filePickerName = document.getElementById("file-picker-name");
       const selectedFile = document.getElementById("selected-file");
       const selectedFileName = document.getElementById("selected-file-name");
       const selectedFileMeta = document.getElementById("selected-file-meta");
@@ -1357,11 +1379,13 @@
         const file = fileInput.files[0];
         if (!file) {
           selectedFile.dataset.visible = "false";
+          filePickerName.textContent = "{{ t.workbench.file_picker_empty }}";
           selectedFileName.textContent = "{{ t.workbench.empty_file_title }}";
           selectedFileMeta.textContent = "{{ t.workbench.empty_file_meta }}";
           return;
         }
         selectedFile.dataset.visible = "true";
+        filePickerName.textContent = file.name;
         selectedFileName.textContent = file.name;
         selectedFileMeta.textContent = `${formatFileSize(file.size)} · ${file.type || "application/pdf"}`;
       }

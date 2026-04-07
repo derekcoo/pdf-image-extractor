@@ -47,6 +47,8 @@ def test_index_page_renders_upload_form() -> None:
     assert "font-size: clamp(3.2rem, 5vw, 3.6rem);" in response.text
     assert "上传完成后会继续自动提取图片" in response.text
     assert "拖入 PDF 到这里" in response.text
+    assert "选择文件" in response.text
+    assert "未选择文件" in response.text
     assert "单个 PDF" in response.text
     assert "PNG / ZIP" in response.text
     assert "开始提取" in response.text
@@ -63,6 +65,8 @@ def test_index_page_supports_english_via_lang_override() -> None:
     assert 'href="/?lang=en"' in response.text
     assert "Extract images from PDF" in response.text
     assert "Drop a PDF here" in response.text
+    assert "Choose file" in response.text
+    assert "No file selected" in response.text
     assert "Current file" in response.text
     assert "Progress" in response.text
     assert "No PDF selected yet" in response.text
