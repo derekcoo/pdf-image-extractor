@@ -6,4 +6,5 @@ __pycache__/
 .playwright-cli/
 output/
 tmp/
+.worktrees/
 pic_extractor.egg-info/
