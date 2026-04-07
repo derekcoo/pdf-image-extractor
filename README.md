@@ -1,6 +1,6 @@
 # PDF 图片提取网页工具
 
-一个基于 `FastAPI + PyMuPDF` 的轻量 Web 工具。用户上传单个 PDF 后，系统会自动提取其中的图片，统一转成 PNG，并打包成 ZIP 下载。
+一个基于 `FastAPI + PyMuPDF` 的轻量 Web 工具。用户上传单个 PDF 后，系统会优先提取内嵌原图，必要时再补做页面图片区域裁切，最后统一导出为 PNG 并打包成 ZIP 下载。
 
 ## 功能特性
 
@@ -16,6 +16,12 @@
 - 所有结果统一导出为 PNG
 - 下载文件命名格式为 `page-001-image-01.png`
 
+## 使用场景
+
+- 拆分设计稿、样刊、素材汇编里的图片资源
+- 校对 PDF 中图片顺序、页码和出现位置
+- 为内容归档或二次编辑快速生成独立图片文件
+
 ## 限制说明
 
 - 仅支持未加密 PDF
@@ -24,20 +30,20 @@
 - 第一版不做 OCR，也不导出矢量图形
 - 不做图片去重，按页面中的每次出现分别保存
 
-## 本地运行
+## 快速开始
 
 ### 1. 创建虚拟环境
 
 ```bash
-/opt/homebrew/bin/python3.12 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 2. 安装依赖
+### 2. 安装项目依赖
 
 ```bash
 python -m pip install --upgrade pip
-python -m pip install fastapi jinja2 pillow pymupdf python-multipart uvicorn httpx pytest
+python -m pip install -e .[dev]
 ```
 
 ### 3. 启动服务
@@ -48,9 +54,76 @@ PYTHONPATH=. uvicorn pic_extractor.main:app --reload
 
 启动后访问 [http://127.0.0.1:8000](http://127.0.0.1:8000)。
 
-## 运行测试
+## 页面使用流程
+
+1. 打开首页，将一个 PDF 拖入上传区，或点击选择文件。
+2. 页面先显示已选择文件信息，再进入上传进度和服务器处理状态。
+3. 提取成功后，浏览器会自动开始下载 ZIP。
+4. 页面弹出结果通知，显示本次导出张数和 ZIP 文件名。
+5. 点击“确认”后页面刷新，方便开始下一次提取。
+
+## HTTP 接口
+
+### `GET /`
+
+- 返回网页工作台
+- 页面会注入当前最大文件大小和最大页数限制
+
+### `POST /api/extract-images`
+
+- 表单字段：`file`
+- 输入：单个 PDF 文件
+- 输出：`application/zip`
+
+常见响应状态：
+
+- `200`：提取成功并返回 ZIP
+- `400`：文件不是合法 PDF，或 PDF 受密码保护
+- `413`：文件大小或页数超出限制
+- `422`：PDF 中没有可提取的图片
+- `500`：提取过程中发生未预期异常
+
+## 输出规则
+
+- 所有图片统一转成 PNG
+- 文件名按页码和页内顺序编号
+- 示例：`page-001-image-01.png`
+- 下载 ZIP 文件名默认取上传文件主名，格式为 `<原文件名>-images.zip`
+
+## 项目结构
+
+```text
+pic_extractor/
+├── pic_extractor/
+│   ├── main.py                    # FastAPI 路由和下载响应
+│   ├── templates/index.html       # 单页前端界面
+│   └── services/pdf_extractor.py  # PDF 图片提取核心逻辑
+├── tests/
+│   ├── test_app.py                # 页面和 API 测试
+│   └── test_pdf_extractor.py      # 提取逻辑测试
+├── docs/plans/                    # 本轮设计和实施记录
+├── pyproject.toml
+└── README.md
+```
+
+## 开发命令
+
+### 运行测试
 
 ```bash
 source .venv/bin/activate
 PYTHONPATH=. pytest -q
 ```
+
+### 启动开发服务
+
+```bash
+source .venv/bin/activate
+PYTHONPATH=. uvicorn pic_extractor.main:app --reload
+```
+
+## 当前实现说明
+
+- 图片提取逻辑分两步：先拿 PDF 内嵌图片，再对页面图片块做补充裁切
+- 内嵌图片和补充裁切结果会统一排序后再输出
+- 当前界面是服务端渲染的单页模板，没有引入额外前端构建工具
