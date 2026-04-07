@@ -1,6 +1,15 @@
 # PDF 图片提取网页工具
 
+A lightweight FastAPI web app for extracting images from PDF files into PNGs and packaging them as a ZIP download.
+
 一个基于 `FastAPI + PyMuPDF` 的轻量 Web 工具。用户上传单个 PDF 后，系统会优先提取内嵌原图，必要时再补做页面图片区域裁切，最后统一导出为 PNG 并打包成 ZIP 下载。
+
+## At a Glance
+
+- Stack: `FastAPI` + `PyMuPDF` + server-rendered HTML
+- Input: a single unencrypted PDF
+- Output: PNG images bundled as one ZIP archive
+- Best for: document cleanup, editorial review, image archiving, and asset reuse
 
 ## 功能特性
 
