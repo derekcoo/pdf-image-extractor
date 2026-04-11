@@ -22,6 +22,7 @@ A lightweight FastAPI web app for extracting images from PDF files into PNGs and
 - 用户点击通知框“确认”后，页面会自动刷新
 - 优先提取 PDF 内嵌原图
 - 对未直接提取出的图片区域做页面裁切补充
+- 对疑似整页扁平化图片的页面，尝试按留白自动拆分多个独立画面
 - 所有结果统一导出为 PNG
 - 下载文件命名格式为 `page-001-image-01.png`
 
@@ -38,6 +39,7 @@ A lightweight FastAPI web app for extracting images from PDF files into PNGs and
 - 默认最大页数为 200
 - 第一版不做 OCR，也不导出矢量图形
 - 不做图片去重，按页面中的每次出现分别保存
+- 轻量拆分模式依赖页面留白和规整布局，复杂扫描件或边界不清的页面可能仍会导出整页图
 
 ## 快速开始
 
@@ -99,6 +101,14 @@ PYTHONPATH=. uvicorn pic_extractor.main:app --reload
 - 示例：`page-001-image-01.png`
 - 下载 ZIP 文件名默认取上传文件主名，格式为 `<原文件名>-images.zip`
 
+## 多画面页面说明
+
+- 默认仍然优先提取 PDF 内嵌图片对象
+- 如果某一页看起来更像一张铺满整页的大图，系统会额外尝试把该页按留白切分成多个画面
+- 当前服务器版本使用轻量规则切分，不引入 OpenCV，优先保证部署简单和资源占用可控
+- 如果页面边界不清晰、背景复杂或像扫描件，系统会保守回退到整页结果，而不是强行切碎
+- 后续可以为本地部署版本增加基于 OpenCV 的增强切分模式，用于处理更复杂的版面
+
 ## 项目结构
 
 ```text
@@ -134,5 +144,6 @@ PYTHONPATH=. uvicorn pic_extractor.main:app --reload
 ## 当前实现说明
 
 - 图片提取逻辑分两步：先拿 PDF 内嵌图片，再对页面图片块做补充裁切
+- 当页面只检测到接近整页的大图时，会额外尝试按留白拆分多个 panel
 - 内嵌图片和补充裁切结果会统一排序后再输出
 - 当前界面是服务端渲染的单页模板，没有引入额外前端构建工具

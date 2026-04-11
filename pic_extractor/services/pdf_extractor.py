@@ -11,6 +11,14 @@ from PIL import Image
 DEFAULT_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 DEFAULT_MAX_PAGES = 200
 DEFAULT_RENDER_SCALE = 2.0
+BACKGROUND_THRESHOLD = 245
+WHOLE_PAGE_MIN_AXIS_COVERAGE = 0.95
+WHOLE_PAGE_MIN_AREA_RATIO = 0.3
+MIN_PANEL_EDGE_PIXELS = 40
+MIN_PANEL_AREA_RATIO = 0.03
+MIN_GAP_PIXELS = 16
+MAX_PANEL_COUNT = 12
+MIN_TOTAL_PANEL_COVERAGE_RATIO = 0.4
 
 
 class PDFExtractionError(Exception):
@@ -118,8 +126,220 @@ class PDFImageExtractor:
             occupied_rects=[occurrence.rect for occurrence in embedded_occurrences],
         )
         occurrences = embedded_occurrences + fallback_occurrences
+        split_occurrences = self._split_whole_page_occurrence(page, occurrences)
+        if split_occurrences is not None:
+            occurrences = split_occurrences
         occurrences.sort(key=lambda occurrence: (round(occurrence.rect.y0, 3), round(occurrence.rect.x0, 3)))
         return occurrences
+
+    def _split_whole_page_occurrence(
+        self,
+        page: fitz.Page,
+        occurrences: list[_ImageOccurrence],
+    ) -> list[_ImageOccurrence] | None:
+        whole_page_occurrence = self._get_whole_page_occurrence(page, occurrences)
+        if whole_page_occurrence is None:
+            return None
+
+        occurrence_image = self._open_occurrence_image(whole_page_occurrence)
+        if occurrence_image is None:
+            return None
+
+        panel_boxes = self._detect_panel_boxes(occurrence_image)
+        if len(panel_boxes) < 2 or len(panel_boxes) > MAX_PANEL_COUNT:
+            return None
+
+        total_panel_area = sum((right - left) * (bottom - top) for left, top, right, bottom in panel_boxes)
+        image_area = max(occurrence_image.width * occurrence_image.height, 1)
+        if total_panel_area / image_area < MIN_TOTAL_PANEL_COVERAGE_RATIO:
+            return None
+
+        occurrence_rect = whole_page_occurrence.rect
+        image_width = max(occurrence_image.width, 1)
+        image_height = max(occurrence_image.height, 1)
+        split_occurrences: list[_ImageOccurrence] = []
+        for left, top, right, bottom in panel_boxes:
+            crop = occurrence_image.crop((left, top, right, bottom))
+            occurrence_crop_rect = fitz.Rect(
+                occurrence_rect.x0 + (left / image_width) * occurrence_rect.width,
+                occurrence_rect.y0 + (top / image_height) * occurrence_rect.height,
+                occurrence_rect.x0 + (right / image_width) * occurrence_rect.width,
+                occurrence_rect.y0 + (bottom / image_height) * occurrence_rect.height,
+            )
+            split_occurrences.append(
+                _ImageOccurrence(
+                    rect=occurrence_crop_rect,
+                    content=self._image_to_png_bytes(crop),
+                )
+            )
+
+        return split_occurrences
+
+    def _get_whole_page_occurrence(self, page: fitz.Page, occurrences: list[_ImageOccurrence]) -> _ImageOccurrence | None:
+        if len(occurrences) != 1:
+            return None
+
+        occurrence_rect = occurrences[0].rect
+        page_rect = page.rect
+        width_ratio = occurrence_rect.width / max(page_rect.width, 1)
+        height_ratio = occurrence_rect.height / max(page_rect.height, 1)
+        occurrence_area = max(occurrence_rect.width * occurrence_rect.height, 0)
+        page_area = max(page_rect.width * page_rect.height, 1)
+        if max(width_ratio, height_ratio) < WHOLE_PAGE_MIN_AXIS_COVERAGE:
+            return None
+        if occurrence_area / page_area < WHOLE_PAGE_MIN_AREA_RATIO:
+            return None
+        return occurrences[0]
+
+    def _open_occurrence_image(self, occurrence: _ImageOccurrence) -> Image.Image | None:
+        try:
+            return Image.open(io.BytesIO(occurrence.content)).convert("RGB")
+        except OSError:
+            return None
+
+    def _detect_panel_boxes(self, image: Image.Image) -> list[tuple[int, int, int, int]]:
+        grayscale = image.convert("L")
+        root_box = self._trim_foreground_box(grayscale, (0, 0, grayscale.width, grayscale.height))
+        if root_box is None:
+            return []
+
+        panel_boxes = self._split_box_by_whitespace(grayscale, root_box)
+        panel_boxes.sort(key=lambda box: (box[1], box[0]))
+        return panel_boxes
+
+    def _split_box_by_whitespace(
+        self,
+        grayscale: Image.Image,
+        box: tuple[int, int, int, int],
+    ) -> list[tuple[int, int, int, int]]:
+        trimmed_box = self._trim_foreground_box(grayscale, box)
+        if trimmed_box is None:
+            return []
+        if not self._is_viable_panel_box(grayscale, trimmed_box):
+            return []
+
+        split_result = self._find_split_box(grayscale, trimmed_box)
+        if split_result is None:
+            return [trimmed_box]
+
+        first_box, second_box = split_result
+        return self._split_box_by_whitespace(grayscale, first_box) + self._split_box_by_whitespace(grayscale, second_box)
+
+    def _find_split_box(
+        self,
+        grayscale: Image.Image,
+        box: tuple[int, int, int, int],
+    ) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]] | None:
+        vertical_split = self._find_axis_split(grayscale, box, axis="x")
+        horizontal_split = self._find_axis_split(grayscale, box, axis="y")
+        if vertical_split is None and horizontal_split is None:
+            return None
+        if horizontal_split is None:
+            return vertical_split["boxes"]
+        if vertical_split is None:
+            return horizontal_split["boxes"]
+
+        return vertical_split["boxes"] if vertical_split["gap_size"] >= horizontal_split["gap_size"] else horizontal_split["boxes"]
+
+    def _find_axis_split(
+        self,
+        grayscale: Image.Image,
+        box: tuple[int, int, int, int],
+        *,
+        axis: str,
+    ) -> dict[str, object] | None:
+        left, top, right, bottom = box
+        length = right - left if axis == "x" else bottom - top
+
+        if length < MIN_PANEL_EDGE_PIXELS * 2:
+            return None
+
+        current_gap_start: int | None = None
+        best_gap_start: int | None = None
+        best_gap_end: int | None = None
+        longest_gap = 0
+
+        for index in range(length):
+            position = left + index if axis == "x" else top + index
+            has_foreground = self._axis_has_foreground(grayscale, box, axis=axis, position=position)
+            if not has_foreground:
+                if current_gap_start is None:
+                    current_gap_start = position
+                continue
+
+            if current_gap_start is not None:
+                gap_size = position - current_gap_start
+                if gap_size >= MIN_GAP_PIXELS and gap_size > longest_gap:
+                    longest_gap = gap_size
+                    best_gap_start = current_gap_start
+                    best_gap_end = position
+                current_gap_start = None
+
+        if current_gap_start is not None:
+            gap_size = (right if axis == "x" else bottom) - current_gap_start
+            if gap_size >= MIN_GAP_PIXELS and gap_size > longest_gap:
+                longest_gap = gap_size
+                best_gap_start = current_gap_start
+                best_gap_end = right if axis == "x" else bottom
+
+        if best_gap_start is None or best_gap_end is None or longest_gap < MIN_GAP_PIXELS:
+            return None
+
+        if axis == "x":
+            first = (left, top, best_gap_start, bottom)
+            second = (best_gap_end, top, right, bottom)
+        else:
+            first = (left, top, right, best_gap_start)
+            second = (left, best_gap_end, right, bottom)
+        return {"boxes": (first, second), "gap_size": longest_gap}
+
+    def _axis_has_foreground(
+        self,
+        grayscale: Image.Image,
+        box: tuple[int, int, int, int],
+        *,
+        axis: str,
+        position: int,
+    ) -> bool:
+        pixels = grayscale.load()
+        left, top, right, bottom = box
+        if axis == "x":
+            return any(pixels[position, y] < BACKGROUND_THRESHOLD for y in range(top, bottom))
+        return any(pixels[x, position] < BACKGROUND_THRESHOLD for x in range(left, right))
+
+    def _trim_foreground_box(
+        self,
+        grayscale: Image.Image,
+        box: tuple[int, int, int, int],
+    ) -> tuple[int, int, int, int] | None:
+        left, top, right, bottom = box
+        pixels = grayscale.load()
+
+        while left < right and not any(pixels[left, y] < BACKGROUND_THRESHOLD for y in range(top, bottom)):
+            left += 1
+        while right > left and not any(pixels[right - 1, y] < BACKGROUND_THRESHOLD for y in range(top, bottom)):
+            right -= 1
+        while top < bottom and not any(pixels[x, top] < BACKGROUND_THRESHOLD for x in range(left, right)):
+            top += 1
+        while bottom > top and not any(pixels[x, bottom - 1] < BACKGROUND_THRESHOLD for x in range(left, right)):
+            bottom -= 1
+
+        if left >= right or top >= bottom:
+            return None
+        return left, top, right, bottom
+
+    def _is_viable_panel_box(self, grayscale: Image.Image, box: tuple[int, int, int, int]) -> bool:
+        left, top, right, bottom = box
+        width = right - left
+        height = bottom - top
+        if width < MIN_PANEL_EDGE_PIXELS or height < MIN_PANEL_EDGE_PIXELS:
+            return False
+
+        page_area = max(grayscale.width * grayscale.height, 1)
+        box_area = width * height
+        if box_area / page_area < MIN_PANEL_AREA_RATIO:
+            return False
+        return True
 
     def _extract_embedded_occurrences(
         self,
@@ -200,6 +420,10 @@ class PDFImageExtractor:
         with Image.open(io.BytesIO(image_bytes)) as image:
             if image.mode not in {"RGB", "RGBA"}:
                 image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
-            output = io.BytesIO()
-            image.save(output, format="PNG")
-            return output.getvalue()
+            return PDFImageExtractor._image_to_png_bytes(image)
+
+    @staticmethod
+    def _image_to_png_bytes(image: Image.Image) -> bytes:
+        output = io.BytesIO()
+        image.save(output, format="PNG")
+        return output.getvalue()

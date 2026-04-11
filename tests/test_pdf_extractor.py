@@ -55,6 +55,36 @@ def test_extracts_each_image_occurrence_without_deduping(red_png: bytes) -> None
     ]
 
 
+def test_splits_flattened_multi_panel_page_into_multiple_images(flattened_two_panel_pdf: bytes) -> None:
+    extractor = PDFImageExtractor()
+
+    images = extractor.extract_images(flattened_two_panel_pdf)
+
+    assert [image.filename for image in images] == [
+        "page-001-image-01.png",
+        "page-001-image-02.png",
+    ]
+
+
+def test_keeps_single_legitimate_page_image_as_one_output(single_full_page_pdf: bytes) -> None:
+    extractor = PDFImageExtractor()
+
+    images = extractor.extract_images(single_full_page_pdf)
+
+    assert [image.filename for image in images] == ["page-001-image-01.png"]
+
+
+def test_ignores_tiny_noise_regions_when_splitting(flattened_page_with_small_marks_pdf: bytes) -> None:
+    extractor = PDFImageExtractor()
+
+    images = extractor.extract_images(flattened_page_with_small_marks_pdf)
+
+    assert [image.filename for image in images] == [
+        "page-001-image-01.png",
+        "page-001-image-02.png",
+    ]
+
+
 def test_rejects_invalid_pdf_bytes() -> None:
     extractor = PDFImageExtractor()
 
