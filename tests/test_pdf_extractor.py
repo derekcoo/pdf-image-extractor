@@ -85,6 +85,20 @@ def test_ignores_tiny_noise_regions_when_splitting(flattened_page_with_small_mar
     ]
 
 
+def test_splits_large_flattened_occurrence_even_with_small_decor(
+    flattened_large_occurrence_with_small_decor_pdf: bytes,
+) -> None:
+    extractor = PDFImageExtractor()
+
+    images = extractor.extract_images(flattened_large_occurrence_with_small_decor_pdf)
+
+    assert [image.filename for image in images] == [
+        "page-001-image-01.png",
+        "page-001-image-02.png",
+        "page-001-image-03.png",
+    ]
+
+
 def test_rejects_invalid_pdf_bytes() -> None:
     extractor = PDFImageExtractor()
 

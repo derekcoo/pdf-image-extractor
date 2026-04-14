@@ -117,3 +117,23 @@ def flattened_page_with_small_marks_pdf() -> bytes:
             ]
         ]
     )
+
+
+@pytest.fixture
+def flattened_large_occurrence_with_small_decor_pdf() -> bytes:
+    large_image = make_flattened_panel_png(["red", "blue"])
+    decor_image = make_png_bytes("black", size=(32, 12))
+    return make_pdf_with_images(
+        [
+            [
+                {
+                    "rect": (30, 30, 120, 60),
+                    "image_bytes": decor_image,
+                },
+                {
+                    "rect": (0, 150, 595, 467),
+                    "image_bytes": large_image,
+                },
+            ]
+        ]
+    )

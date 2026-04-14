@@ -125,23 +125,33 @@ class PDFImageExtractor:
             page,
             occupied_rects=[occurrence.rect for occurrence in embedded_occurrences],
         )
-        occurrences = embedded_occurrences + fallback_occurrences
-        split_occurrences = self._split_whole_page_occurrence(page, occurrences)
-        if split_occurrences is not None:
-            occurrences = split_occurrences
+        occurrences = self._split_large_occurrences(page, embedded_occurrences + fallback_occurrences)
         occurrences.sort(key=lambda occurrence: (round(occurrence.rect.y0, 3), round(occurrence.rect.x0, 3)))
         return occurrences
 
-    def _split_whole_page_occurrence(
+    def _split_large_occurrences(
         self,
         page: fitz.Page,
         occurrences: list[_ImageOccurrence],
+    ) -> list[_ImageOccurrence]:
+        split_occurrences: list[_ImageOccurrence] = []
+        for occurrence in occurrences:
+            split_result = self._split_large_occurrence(page, occurrence)
+            if split_result is None:
+                split_occurrences.append(occurrence)
+                continue
+            split_occurrences.extend(split_result)
+        return split_occurrences
+
+    def _split_large_occurrence(
+        self,
+        page: fitz.Page,
+        occurrence: _ImageOccurrence,
     ) -> list[_ImageOccurrence] | None:
-        whole_page_occurrence = self._get_whole_page_occurrence(page, occurrences)
-        if whole_page_occurrence is None:
+        if not self._looks_like_large_occurrence(page, occurrence):
             return None
 
-        occurrence_image = self._open_occurrence_image(whole_page_occurrence)
+        occurrence_image = self._open_occurrence_image(occurrence)
         if occurrence_image is None:
             return None
 
@@ -154,17 +164,16 @@ class PDFImageExtractor:
         if total_panel_area / image_area < MIN_TOTAL_PANEL_COVERAGE_RATIO:
             return None
 
-        occurrence_rect = whole_page_occurrence.rect
         image_width = max(occurrence_image.width, 1)
         image_height = max(occurrence_image.height, 1)
         split_occurrences: list[_ImageOccurrence] = []
         for left, top, right, bottom in panel_boxes:
             crop = occurrence_image.crop((left, top, right, bottom))
             occurrence_crop_rect = fitz.Rect(
-                occurrence_rect.x0 + (left / image_width) * occurrence_rect.width,
-                occurrence_rect.y0 + (top / image_height) * occurrence_rect.height,
-                occurrence_rect.x0 + (right / image_width) * occurrence_rect.width,
-                occurrence_rect.y0 + (bottom / image_height) * occurrence_rect.height,
+                occurrence.rect.x0 + (left / image_width) * occurrence.rect.width,
+                occurrence.rect.y0 + (top / image_height) * occurrence.rect.height,
+                occurrence.rect.x0 + (right / image_width) * occurrence.rect.width,
+                occurrence.rect.y0 + (bottom / image_height) * occurrence.rect.height,
             )
             split_occurrences.append(
                 _ImageOccurrence(
@@ -175,21 +184,17 @@ class PDFImageExtractor:
 
         return split_occurrences
 
-    def _get_whole_page_occurrence(self, page: fitz.Page, occurrences: list[_ImageOccurrence]) -> _ImageOccurrence | None:
-        if len(occurrences) != 1:
-            return None
-
-        occurrence_rect = occurrences[0].rect
+    def _looks_like_large_occurrence(self, page: fitz.Page, occurrence: _ImageOccurrence) -> bool:
         page_rect = page.rect
-        width_ratio = occurrence_rect.width / max(page_rect.width, 1)
-        height_ratio = occurrence_rect.height / max(page_rect.height, 1)
-        occurrence_area = max(occurrence_rect.width * occurrence_rect.height, 0)
+        width_ratio = occurrence.rect.width / max(page_rect.width, 1)
+        height_ratio = occurrence.rect.height / max(page_rect.height, 1)
+        occurrence_area = max(occurrence.rect.width * occurrence.rect.height, 0)
         page_area = max(page_rect.width * page_rect.height, 1)
         if max(width_ratio, height_ratio) < WHOLE_PAGE_MIN_AXIS_COVERAGE:
-            return None
+            return False
         if occurrence_area / page_area < WHOLE_PAGE_MIN_AREA_RATIO:
-            return None
-        return occurrences[0]
+            return False
+        return True
 
     def _open_occurrence_image(self, occurrence: _ImageOccurrence) -> Image.Image | None:
         try:
